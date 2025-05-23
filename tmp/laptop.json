@@ -1,0 +1,62 @@
+{
+  "id":  "8167dad4-256c-44b4-ae54-75b800b09a25",
+  "brand":  "Apple",
+  "name":  "Macbook Pro",
+  "cpu":  {
+    "brand":  "Intel",
+    "name":  "Xeon E-2286M",
+    "numberCores":  3,
+    "numberThreads":  5,
+    "minGhz":  2.2556557720033066,
+    "maxGhz":  4.203007955811178
+  },
+  "ram":  {
+    "value":  "36",
+    "unit":  "GIGABYTE"
+  },
+  "gpus":  [
+    {
+      "brand":  "Nvidia",
+      "name":  "RTX 2060",
+      "minGhz":  1.0490834695852387,
+      "maxGhz":  1.2552817169801622,
+      "memory":  {
+        "value":  "4",
+        "unit":  "GIGABYTE"
+      }
+    }
+  ],
+  "storages":  [
+    {
+      "driver":  "SSD",
+      "memory":  {
+        "value":  "1009",
+        "unit":  "GIGABYTE"
+      }
+    },
+    {
+      "driver":  "HDD",
+      "memory":  {
+        "value":  "2",
+        "unit":  "TERABYTE"
+      }
+    }
+  ],
+  "screen":  {
+    "sizeInch":  13.839526,
+    "resolution":  {
+      "width":  2858,
+      "height":  1608
+    },
+    "panel":  "OLED",
+    "multitouch":  false
+  },
+  "keyboard":  {
+    "layout":  "QWERTY",
+    "backlit":  false
+  },
+  "weightKg":  1.1701679777323826,
+  "priceUsd":  1918.0130233841032,
+  "releaseYear":  2017,
+  "updatedAt":  "2025-05-23T21:09:31.954603Z"
+}
