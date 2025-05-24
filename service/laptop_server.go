@@ -1,9 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	pb "grpc_tutorial/pb"
+	"io"
 	"log"
 
 	"github.com/google/uuid"
@@ -13,14 +15,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const maxImageSize = 1 << 20
+
 type LaptopServer struct {
 	pb.UnimplementedLaptopServiceServer
-	Store LaptopStore
+	Store      LaptopStore
+	ImageStore ImageStore
 }
 
-func NewLaptopServer(store LaptopStore) *LaptopServer {
+func NewLaptopServer(store LaptopStore, imageStore ImageStore) *LaptopServer {
 	return &LaptopServer{
-		Store: store,
+		Store:      store,
+		ImageStore: imageStore,
 	}
 }
 
@@ -40,6 +46,9 @@ func (s *LaptopServer) CreateLaptop(ctx context.Context, req *pb.CreateLaptopReq
 		laptop.Id = id.String()
 	}
 
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		log.Print("request canceled")
 		return nil, status.Error(codes.Canceled, "request canceled")
@@ -64,6 +73,17 @@ func (s *LaptopServer) CreateLaptop(ctx context.Context, req *pb.CreateLaptopReq
 	}, nil
 }
 
+func contextError(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return logError(status.Error(codes.Canceled, "request canceled"))
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return logError(status.Error(codes.DeadlineExceeded, "deadline exceeded"))
+	}
+	return nil
+}
+
 func (s *LaptopServer) SearchLaptop(req *pb.SearchLaptopRequest, stream grpc.ServerStreamingServer[pb.SearchLaptopResponse]) error {
 	filter := req.GetFilter()
 	log.Printf("got search-laptop request with filter : %v", filter)
@@ -81,4 +101,72 @@ func (s *LaptopServer) SearchLaptop(req *pb.SearchLaptopRequest, stream grpc.Ser
 		return status.Errorf(codes.Internal, "unexpected error: %v", err)
 	}
 	return nil
+}
+func (s *LaptopServer) UploadImage(stream grpc.ClientStreamingServer[pb.UploadImageRequest, pb.UploadImageResponse]) error {
+	req, err := stream.Recv()
+	if err != nil {
+		return logError(status.Errorf(codes.Unknown, "cannot receiv info"))
+	}
+	laptopId := req.GetInfo().GetLaptopId()
+	imageType := req.GetInfo().GetImageType()
+	log.Printf("received an upload-image request for laptop %s with image type %s", laptopId, imageType)
+
+	laptop, err := s.Store.Find(laptopId)
+	if err != nil {
+		return logError(status.Errorf(codes.Internal, "error looking up laptop"))
+	}
+	if laptop == nil {
+		return logError(status.Errorf(codes.NotFound, "laptop %s not found", laptopId))
+	}
+
+	imageData := bytes.Buffer{}
+	imageSize := 0
+	for {
+		if err := contextError(stream.Context()); err != nil {
+			return err
+		}
+		log.Print("waiting to recieve more data")
+		req, err := stream.Recv()
+		if err == io.EOF {
+			log.Print("no more data")
+			break
+		}
+		chunk := req.GetChunkData()
+		size := len(chunk)
+
+		log.Printf("received a chunk with size: %d", size)
+
+		imageSize += size
+		if imageSize > maxImageSize {
+			return logError(status.Errorf(codes.InvalidArgument, "image size too large: %d > %d", imageSize, maxImageSize))
+		}
+		_, err = imageData.Write(chunk)
+		if err != nil {
+			return logError(status.Errorf(codes.Internal, "cannot write chunk data: %v", err))
+		}
+	}
+
+	imageId, err := s.ImageStore.Save(laptopId, imageType, imageData)
+	if err != nil {
+		return logError(status.Errorf(codes.Internal, "cannot save image to the store: %v", err))
+	}
+	res := &pb.UploadImageResponse{
+		Id:   imageId,
+		Size: uint32(imageSize),
+	}
+	err = stream.SendAndClose(res)
+	if err != nil {
+		return logError(status.Errorf(codes.Unknown, "cannot send response: %v", err))
+
+	}
+	log.Printf("saved image with id: %s, size %d", imageId, imageSize)
+	return nil
+}
+
+func logError(err error) error {
+	if err != nil {
+		log.Print(err)
+	}
+
+	return err
 }
