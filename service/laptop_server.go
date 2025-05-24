@@ -5,10 +5,10 @@ import (
 	"errors"
 	pb "grpc_tutorial/pb"
 	"log"
-	"time"
 
 	"github.com/google/uuid"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,7 +39,6 @@ func (s *LaptopServer) CreateLaptop(ctx context.Context, req *pb.CreateLaptopReq
 		}
 		laptop.Id = id.String()
 	}
-	time.Sleep(8 * time.Second)
 
 	if errors.Is(ctx.Err(), context.Canceled) {
 		log.Print("request canceled")
@@ -63,4 +62,23 @@ func (s *LaptopServer) CreateLaptop(ctx context.Context, req *pb.CreateLaptopReq
 	return &pb.CreateLaptopResponse{
 		Id: laptop.Id,
 	}, nil
+}
+
+func (s *LaptopServer) SearchLaptop(req *pb.SearchLaptopRequest, stream grpc.ServerStreamingServer[pb.SearchLaptopResponse]) error {
+	filter := req.GetFilter()
+	log.Printf("got search-laptop request with filter : %v", filter)
+	err := s.Store.Search(stream.Context(), filter, func(laptop *pb.Laptop) error {
+		res := &pb.SearchLaptopResponse{Laptop: laptop}
+		err := stream.Send(res)
+		if err != nil {
+			return err
+		}
+		log.Printf("sent laptop with id: %s", laptop.GetId())
+		return nil
+	})
+
+	if err != nil {
+		return status.Errorf(codes.Internal, "unexpected error: %v", err)
+	}
+	return nil
 }
