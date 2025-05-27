@@ -16,7 +16,7 @@ func main() {
 	flag.Parse()
 	log.Printf("started server on port %d", *port)
 	imageStore := service.NewDiskImageStore("img")
-	laptopServer := service.NewLaptopServer(service.NewInMemoryLaptopStore(), imageStore)
+	laptopServer := service.NewLaptopServer(service.NewInMemoryLaptopStore(), imageStore, service.NewInMemoryRatingStore())
 	grpcServer := grpc.NewServer()
 
 	pb.RegisterLaptopServiceServer(grpcServer, laptopServer)

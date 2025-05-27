@@ -19,14 +19,16 @@ const maxImageSize = 1 << 20
 
 type LaptopServer struct {
 	pb.UnimplementedLaptopServiceServer
-	Store      LaptopStore
-	ImageStore ImageStore
+	Store       LaptopStore
+	ImageStore  ImageStore
+	RatingStore RatingStore
 }
 
-func NewLaptopServer(store LaptopStore, imageStore ImageStore) *LaptopServer {
+func NewLaptopServer(store LaptopStore, imageStore ImageStore, ratingStore RatingStore) *LaptopServer {
 	return &LaptopServer{
-		Store:      store,
-		ImageStore: imageStore,
+		Store:       store,
+		ImageStore:  imageStore,
+		RatingStore: ratingStore,
 	}
 }
 
@@ -160,6 +162,49 @@ func (s *LaptopServer) UploadImage(stream grpc.ClientStreamingServer[pb.UploadIm
 
 	}
 	log.Printf("saved image with id: %s, size %d", imageId, imageSize)
+	return nil
+}
+
+func (s *LaptopServer) RateLaptop(stream grpc.BidiStreamingServer[pb.RateLaptopRequest, pb.RateLaptopResponse]) error {
+	for {
+		err := contextError(stream.Context())
+		if err != nil {
+			return err
+		}
+		req, err := stream.Recv()
+		if err == io.EOF {
+			log.Print("no more data")
+			break
+		}
+		if err != nil {
+			return logError(status.Errorf(codes.Unknown, "cannot receive stream request: %v", err))
+		}
+		laptopId := req.GetLaptopId()
+		score := req.GetScore()
+		log.Printf("recieved a rate-laptop request: id = %s, score = %.2f", laptopId, score)
+
+		foundLaptop, err := s.Store.Find(laptopId)
+		if err != nil {
+			return logError(status.Errorf(codes.Internal, "cannot find laptop: %v", err))
+		}
+		if foundLaptop == nil {
+			return logError(status.Errorf(codes.NotFound, "laptop not found, ID: %s", laptopId))
+		}
+
+		rating, err := s.RatingStore.Add(laptopId, score)
+		if err != nil {
+			return logError(status.Errorf(codes.Internal, "cannot add rating to store: %v", err))
+		}
+		res := &pb.RateLaptopResponse{
+			LaptopId:     laptopId,
+			RatedCount:   rating.Count,
+			AverageScore: rating.Sum / float64(rating.Count),
+		}
+		err = stream.Send(res)
+		if err != nil {
+			return logError(status.Errorf(codes.Unknown, "cannot send stream response: %v", err))
+		}
+	}
 	return nil
 }
 
