@@ -1,15 +1,19 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	pb "grpc_tutorial/pb"
 	"grpc_tutorial/service"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -42,6 +46,27 @@ func createUser(userStore service.UserStore, username, password, role string) er
 
 	return userStore.Save(user)
 }
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	serverCert, err := tls.LoadX509KeyPair("cert/server-cert.pem", "cert/server-key.pem")
+	if err != nil {
+		return nil, err
+	}
+	pemClientCA, err := os.ReadFile("cert/ca-cert.pem")
+	if err != nil {
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pemClientCA) {
+		return nil, fmt.Errorf("failed to add client CA's certificate")
+	}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    certPool,
+	}
+
+	return credentials.NewTLS(config), nil
+}
 func main() {
 	port := flag.Int("port", 0, "server port")
 	flag.Parse()
@@ -54,11 +79,16 @@ func main() {
 	if err != nil {
 		log.Fatal("cannot seed users")
 	}
-
+	tlsCredentials, err := loadTLSCredentials()
+	if err != nil {
+		log.Fatal("cannot load TLS credentials: ", err)
+	}
 	jwtManager := service.NewJWTManager(secretKey, tokenDuration)
 	authServer := service.NewAuthServer(userStore, jwtManager)
 	interceptor := service.NewAuthInteceptor(jwtManager, accessibleRoles())
+
 	grpcServer := grpc.NewServer(
+		grpc.Creds(tlsCredentials),
 		grpc.UnaryInterceptor(interceptor.Unary()),
 		grpc.StreamInterceptor(interceptor.Stream()),
 	)
