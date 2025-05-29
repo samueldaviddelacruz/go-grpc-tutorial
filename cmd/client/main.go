@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const username = "admin1"
@@ -50,15 +51,21 @@ func loadTLSCredentials() (credentials.TransportCredentials, error) {
 }
 func main() {
 	serverAddress := flag.String("address", "", "the server address")
+	enableTLS := flag.Bool("tls", false, "enable SSL/TLS")
+
 	flag.Parse()
-	log.Printf("dialing server %s", *serverAddress)
+	log.Printf("dialing server %s, TLS = %t", *serverAddress, *enableTLS)
 
-	tlsCredentials, err := loadTLSCredentials()
-	if err != nil {
-		log.Fatal("cannot load TLS Credentials: ", err)
+	transportOptions := insecure.NewCredentials()
+
+	if *enableTLS {
+		tlsCredentials, err := loadTLSCredentials()
+		if err != nil {
+			log.Fatal("cannot load TLS Credentials: ", err)
+		}
+		transportOptions = tlsCredentials
 	}
-
-	cc1, err := grpc.NewClient(*serverAddress, grpc.WithTransportCredentials(tlsCredentials))
+	cc1, err := grpc.NewClient(*serverAddress, grpc.WithTransportCredentials(transportOptions))
 	if err != nil {
 		log.Fatal("cannot create grpc client", err)
 	}
@@ -70,7 +77,7 @@ func main() {
 	}
 
 	cc2, err := grpc.NewClient(*serverAddress,
-		grpc.WithTransportCredentials(tlsCredentials),
+		grpc.WithTransportCredentials(transportOptions),
 		grpc.WithUnaryInterceptor(interceptor.Unary()),
 		grpc.WithStreamInterceptor(interceptor.Stream()),
 	)

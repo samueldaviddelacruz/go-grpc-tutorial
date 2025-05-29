@@ -69,8 +69,9 @@ func loadTLSCredentials() (credentials.TransportCredentials, error) {
 }
 func main() {
 	port := flag.Int("port", 0, "server port")
+	enableTLS := flag.Bool("tls", false, "enable SSL/TLS")
 	flag.Parse()
-	log.Printf("started server on port %d", *port)
+	log.Printf("started server on port %d, TLS = %t", *port, *enableTLS)
 	imageStore := service.NewDiskImageStore("img")
 	laptopServer := service.NewLaptopServer(service.NewInMemoryLaptopStore(), imageStore, service.NewInMemoryRatingStore())
 	userStore := service.NewInMemorUserStore()
@@ -79,18 +80,24 @@ func main() {
 	if err != nil {
 		log.Fatal("cannot seed users")
 	}
-	tlsCredentials, err := loadTLSCredentials()
-	if err != nil {
-		log.Fatal("cannot load TLS credentials: ", err)
-	}
+
 	jwtManager := service.NewJWTManager(secretKey, tokenDuration)
 	authServer := service.NewAuthServer(userStore, jwtManager)
 	interceptor := service.NewAuthInteceptor(jwtManager, accessibleRoles())
 
-	grpcServer := grpc.NewServer(
-		grpc.Creds(tlsCredentials),
+	serverOptions := []grpc.ServerOption{
 		grpc.UnaryInterceptor(interceptor.Unary()),
 		grpc.StreamInterceptor(interceptor.Stream()),
+	}
+	if *enableTLS {
+		tlsCredentials, err := loadTLSCredentials()
+		if err != nil {
+			log.Fatal("cannot load TLS credentials: ", err)
+		}
+		serverOptions = append(serverOptions, grpc.Creds(tlsCredentials))
+	}
+	grpcServer := grpc.NewServer(
+		serverOptions...,
 	)
 
 	pb.RegisterAuthServiceServer(grpcServer, authServer)
