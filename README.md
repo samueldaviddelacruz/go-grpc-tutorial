@@ -6,13 +6,17 @@ This repository contains my personal code-along and notes from the [TECH SCHOOL 
 
 The tutorial covers key concepts and best practices, including:
 
-- Protocol Buffers (`.proto` files)
-- Generating Go code from `.proto`
+- Protocol Buffers (.proto files)
+- Generating Go code from .proto definitions
 - Implementing gRPC services in Go
-- Unary and streaming RPCs
-- Authentication and middleware (later in the series)
+- Unary and streaming RPCs (client-side, server-side, bidirectional)
+- Context timeouts and cancellation
+- Authentication and middleware
+- TLS encryption and mutual TLS authentication
 - Connecting clients to gRPC servers
-- Bonus: Docker, database integration, and production tips
+- gRPC-Gateway: Adding a RESTful HTTP server that proxies to the gRPC backend
+
+- OpenAPI v2: Auto-generating an OpenAPI specification from Protobufs
 
 ## 💡 What You'll Find in This Repo
 
@@ -20,16 +24,15 @@ The tutorial covers key concepts and best practices, including:
 - `pb/`: Auto-generated Go code from the `.proto` definitions
 - `server/`: gRPC server implementation
 - `client/`: Example client to test services
-- `docs/`: Notes and references from the tutorial
 
 ## 🧠 Why I'm Doing This
 
 I'm following this tutorial to:
 
-- Get hands-on experience with gRPC
-- Learn how gRPC fits into modern backend systems
-- Practice writing idiomatic Go code
-- Prepare for building real-world microservices
+- Gain practical experience with gRPC and Protobuf
+- Understand gRPC's role in modern backend systems
+- Write idiomatic, maintainable Go code
+- Prepare to build secure, scalable microservices in real-world projects
 
 ## 🚀 Getting Started
 
