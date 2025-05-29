@@ -7,6 +7,7 @@
 package grpc_tutorial_proto
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -499,7 +500,7 @@ var File_laptop_service_proto protoreflect.FileDescriptor
 
 const file_laptop_service_proto_rawDesc = "" +
 	"\n" +
-	"\x14laptop_service.proto\x12\x13grpc_tutorial.proto\x1a\x14laptop_message.proto\x1a\x14filter_message.proto\"J\n" +
+	"\x14laptop_service.proto\x12\x13grpc_tutorial.proto\x1a\x14laptop_message.proto\x1a\x14filter_message.proto\x1a\x1cgoogle/api/annotations.proto\"J\n" +
 	"\x13CreateLaptopRequest\x123\n" +
 	"\x06laptop\x18\x01 \x01(\v2\x1b.grpc_tutorial.proto.LaptopR\x06laptop\"&\n" +
 	"\x14CreateLaptopResponse\x12\x0e\n" +
@@ -527,13 +528,13 @@ const file_laptop_service_proto_rawDesc = "" +
 	"\raverage_score\x18\x03 \x01(\x01R\faverageScore\"F\n" +
 	"\x11RateLaptopRequest\x12\x1b\n" +
 	"\tlaptop_id\x18\x01 \x01(\tR\blaptopId\x12\x14\n" +
-	"\x05score\x18\x02 \x01(\x01R\x05score2\xaa\x03\n" +
-	"\rLaptopService\x12e\n" +
-	"\fCreateLaptop\x12(.grpc_tutorial.proto.CreateLaptopRequest\x1a).grpc_tutorial.proto.CreateLaptopResponse\"\x00\x12g\n" +
-	"\fSearchLaptop\x12(.grpc_tutorial.proto.SearchLaptopRequest\x1a).grpc_tutorial.proto.SearchLaptopResponse\"\x000\x01\x12d\n" +
-	"\vUploadImage\x12'.grpc_tutorial.proto.UploadImageRequest\x1a(.grpc_tutorial.proto.UploadImageResponse\"\x00(\x01\x12c\n" +
+	"\x05score\x18\x02 \x01(\x01R\x05score2\x9e\x04\n" +
+	"\rLaptopService\x12\x81\x01\n" +
+	"\fCreateLaptop\x12(.grpc_tutorial.proto.CreateLaptopRequest\x1a).grpc_tutorial.proto.CreateLaptopResponse\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/laptop/create\x12\x80\x01\n" +
+	"\fSearchLaptop\x12(.grpc_tutorial.proto.SearchLaptopRequest\x1a).grpc_tutorial.proto.SearchLaptopResponse\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/v1/laptop/search0\x01\x12\x86\x01\n" +
+	"\vUploadImage\x12'.grpc_tutorial.proto.UploadImageRequest\x1a(.grpc_tutorial.proto.UploadImageResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/laptop/upload_image(\x01\x12}\n" +
 	"\n" +
-	"RateLaptop\x12&.grpc_tutorial.proto.RateLaptopRequest\x1a'.grpc_tutorial.proto.RateLaptopResponse\"\x00(\x010\x01B\x15Z\x13grpc_tutorial.protob\x06proto3"
+	"RateLaptop\x12&.grpc_tutorial.proto.RateLaptopRequest\x1a'.grpc_tutorial.proto.RateLaptopResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/laptop/rate(\x010\x01B\x15Z\x13grpc_tutorial.protob\x06proto3"
 
 var (
 	file_laptop_service_proto_rawDescOnce sync.Once

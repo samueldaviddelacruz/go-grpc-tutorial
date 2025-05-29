@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -9,17 +10,22 @@ import (
 	"grpc_tutorial/service"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 )
 
 const (
-	secretKey     = "secret"
-	tokenDuration = 15 * time.Minute
+	secretKey        = "secret"
+	tokenDuration    = 15 * time.Minute
+	serverCertFile   = "cert/server-cert.pem"
+	serverKeyFile    = "cert/server-key.pem"
+	clientCAcertFile = "cert/ca-cert.pem"
 )
 
 func accessibleRoles() map[string][]string {
@@ -47,11 +53,11 @@ func createUser(userStore service.UserStore, username, password, role string) er
 	return userStore.Save(user)
 }
 func loadTLSCredentials() (credentials.TransportCredentials, error) {
-	serverCert, err := tls.LoadX509KeyPair("cert/server-cert.pem", "cert/server-key.pem")
+	serverCert, err := tls.LoadX509KeyPair(serverCertFile, serverKeyFile)
 	if err != nil {
 		return nil, err
 	}
-	pemClientCA, err := os.ReadFile("cert/ca-cert.pem")
+	pemClientCA, err := os.ReadFile(clientCAcertFile)
 	if err != nil {
 		return nil, err
 	}
@@ -67,32 +73,21 @@ func loadTLSCredentials() (credentials.TransportCredentials, error) {
 
 	return credentials.NewTLS(config), nil
 }
-func main() {
-	port := flag.Int("port", 0, "server port")
-	enableTLS := flag.Bool("tls", false, "enable SSL/TLS")
-	flag.Parse()
-	log.Printf("started server on port %d, TLS = %t", *port, *enableTLS)
-	imageStore := service.NewDiskImageStore("img")
-	laptopServer := service.NewLaptopServer(service.NewInMemoryLaptopStore(), imageStore, service.NewInMemoryRatingStore())
-	userStore := service.NewInMemorUserStore()
-
-	err := seedUsers(userStore)
-	if err != nil {
-		log.Fatal("cannot seed users")
-	}
-
-	jwtManager := service.NewJWTManager(secretKey, tokenDuration)
-	authServer := service.NewAuthServer(userStore, jwtManager)
+func runGRPCServer(authServer pb.AuthServiceServer,
+	laptopServer pb.LaptopServiceServer,
+	jwtManager *service.JWTManager,
+	enableTLS bool,
+	listener net.Listener) error {
 	interceptor := service.NewAuthInteceptor(jwtManager, accessibleRoles())
 
 	serverOptions := []grpc.ServerOption{
 		grpc.UnaryInterceptor(interceptor.Unary()),
 		grpc.StreamInterceptor(interceptor.Stream()),
 	}
-	if *enableTLS {
+	if enableTLS {
 		tlsCredentials, err := loadTLSCredentials()
 		if err != nil {
-			log.Fatal("cannot load TLS credentials: ", err)
+			return fmt.Errorf("cannot load TLS credentials: ", err)
 		}
 		serverOptions = append(serverOptions, grpc.Creds(tlsCredentials))
 	}
@@ -104,13 +99,59 @@ func main() {
 	pb.RegisterLaptopServiceServer(grpcServer, laptopServer)
 
 	reflection.Register(grpcServer)
+	log.Printf("Start GRPC server at %s, TLS = %t", listener.Addr().String(), enableTLS)
 
+	return grpcServer.Serve(listener)
+}
+
+func runRESTServer(authServer pb.AuthServiceServer,
+	laptopServer pb.LaptopServiceServer,
+	jwtManager *service.JWTManager,
+	enableTLS bool,
+	listener net.Listener) error {
+	mux := runtime.NewServeMux()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := pb.RegisterAuthServiceHandlerServer(ctx, mux, authServer)
+	if err != nil {
+		return err
+	}
+	err = pb.RegisterLaptopServiceHandlerServer(ctx, mux, laptopServer)
+	if err != nil {
+		return err
+	}
+	log.Printf("Start REST server at %s, TLS = %t", listener.Addr().String(), enableTLS)
+	if enableTLS {
+		return http.ServeTLS(listener, mux, serverCertFile, serverKeyFile)
+	}
+	return http.Serve(listener, mux)
+}
+func main() {
+	port := flag.Int("port", 0, "server port")
+	enableTLS := flag.Bool("tls", false, "enable SSL/TLS")
+	serverType := flag.String("type", "grpc", "type of server (grpc/rest)")
+	flag.Parse()
+	imageStore := service.NewDiskImageStore("img")
+	laptopServer := service.NewLaptopServer(service.NewInMemoryLaptopStore(), imageStore, service.NewInMemoryRatingStore())
+	userStore := service.NewInMemorUserStore()
+
+	err := seedUsers(userStore)
+	if err != nil {
+		log.Fatal("cannot seed users")
+	}
+
+	jwtManager := service.NewJWTManager(secretKey, tokenDuration)
+	authServer := service.NewAuthServer(userStore, jwtManager)
 	address := fmt.Sprintf("0.0.0.0:%d", *port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatal("cannot start server", err)
 	}
-	err = grpcServer.Serve(listener)
+	if *serverType == "grpc" {
+		err = runGRPCServer(authServer, laptopServer, jwtManager, *enableTLS, listener)
+	} else {
+		err = runRESTServer(authServer, laptopServer, jwtManager, *enableTLS, listener)
+	}
 	if err != nil {
 		log.Fatal("cannot start server", err)
 	}
